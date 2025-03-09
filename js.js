@@ -1,57 +1,51 @@
-const dgram = require('dgram');
-const { exec } = require('child_process');
+const net = require('net');
+const JSONStream = require('JSONStream'); // لتحليل البيانات المرسلة من Stratum
+const {
+    Buffer
+} = require('buffer');
 
-// إعدادات التعدين
-const POOL_URL = "stratum+tcp://ss.antpool.com:3333";
-const WALLET_ADDRESS = "bc1qu5tm5mwrl45v8sr4ayrrce6rnzspv3xmtvet0l";
-const WORKER_NAME = "ali1wael";
-const XMRIG_PATH = "C:\\Users\\deval\\Desktop\\xmrig-6.22.2\\xmrig.exe";
+// بيانات الاتصال بـ Antpool
+const POOL_HOST = 'stratum+tcp://stratum-ethw.antpool.com:8009';
+const POOL_PORT = 8009;
+const USERNAME = 'ali1wael'; // استبدل بـ اسم المستخدم الخاص بك
+const PASSWORD = 'x'; // استبدل بـ كلمة المرور
+const WALLET_ADDRESS = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; // استبدل بـ عنوان المحفظة الخاص بك
 
-// إعدادات خادم VoIP
-const VOIP_SERVER_IP = "0.0.0.0";
-const VOIP_PORT = 5060;
-const VOIP_USERNAME = "1001";
-const VOIP_PASSWORD = "100";
-const VOIP_DOMAIN = "200.0.57.114";
+// إنشاء اتصال TCP مع خادم Stratum
+const client = new net.Socket();
 
-// تشغيل التعدين
-function startMining() {
-    console.log("[+] بدء التعدين عبر TCP:", POOL_URL);
-    const miningCommand = "${XMRIG_PATH}" -o ${POOL_URL} -u ${WALLET_ADDRESS}.${WORKER_NAME} -p x --cpu-priority=3;
-    exec(miningCommand, (error, stdout, stderr) => {
-        if (error) {
-            console.error(❌ خطأ في التعدين: ${error.message});
-            return;
-        }
-        console.log(✅ التعدين بدأ بنجاح: ${stdout});
-    });
-}
+// الاتصال بالخادم
+client.connect(POOL_PORT, POOL_HOST, function () {
+    console.log('تم الاتصال بـ Antpool بنجاح!');
 
-// تشغيل خادم VoIP UDP
-function startVoipServer() {
-    const server = dgram.createSocket("udp4");
+    // إرسال طلب الاشتراك
+    const subscribeMessage = {
+        id: 1,
+        method: "mining.subscribe",
+        params: []
+    };
+    client.write(JSON.stringify(subscribeMessage) + '\n'); // إرسال الطلب عبر TCP
 
-    server.on("message", (msg, rinfo) => {
-        console.log([+] اتصال وارد من ${rinfo.address}:${rinfo.port});
+    // إرسال طلب التفويض
+    const authorizeMessage = {
+        id: 2,
+        method: "mining.authorize",
+        params: [USERNAME, PASSWORD]
+    };
+    client.write(JSON.stringify(authorizeMessage) + '\n'); // إرسال الطلب عبر TCP
+});
 
-        const sipResponse = REGISTER sip:${VOIP_DOMAIN} SIP/2.0\r\n +
-                            Authorization: Basic ${Buffer.from(VOIP_USERNAME + ":" + VOIP_PASSWORD).toString("base64")}\r\n;
+// استلام الردود
+client.on('data', function (data) {
+    console.log('الرد: ' + data.toString());
+});
 
-        server.send(sipResponse, rinfo.port, rinfo.address, (err) => {
-            if (err) console.error("❌ خطأ في إرسال الاستجابة:", err);
-            else console.log("✅ استجابة SIP تم إرسالها بنجاح!");
-        });
-    });
+// التعامل مع الأخطاء
+client.on('error', function (err) {
+    console.error('خطأ في الاتصال: ', err.message);
+});
 
-    server.bind(VOIP_PORT, VOIP_SERVER_IP, () => {
-        console.log([+] تشغيل خادم VoIP على ${VOIP_SERVER_IP}:${VOIP_PORT});
-    });
-}
-
-// تشغيل العمليات
-function main() {
-    startVoipServer();
-    setTimeout(startMining, 2000);
-}
-
-main();
+// إغلاق الاتصال عند الانتهاء
+client.on('close', function () {
+    console.log('تم إغلاق الاتصال.');
+});
